@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Thunder Den QR bridge</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <h1>Thunder Den QR bridge</h1>
+  <p id="status" role="status">Waiting for a wallet request.</p>
+  <p>Check the wallet and transaction on the offline laptop. This page cannot approve them.</p>
+  <section id="job" hidden>
+    <h2>1. Scan this request with Thunder Den</h2>
+    <canvas id="qr" aria-label="Request QR code"></canvas>
+    <p id="frames"></p>
+    <button id="pause">Pause QR</button>
+    <h2>2. Review on the offline laptop</h2>
+    <p>When its response QR is ready, point this camera at it.</p>
+    <p>Enter recovery words and passphrases before starting this camera.</p>
+    <button id="camera">Start response camera</button>
+    <video id="video" autoplay playsinline muted hidden></video>
+    <p id="progress"></p>
+    <button id="cancel">Cancel this request</button>
+    <p>Cancelling here does not stop offline review. Press Esc on Thunder Den too.</p>
+  </section>
+</body>
+</html>

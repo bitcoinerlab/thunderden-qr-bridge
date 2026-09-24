@@ -1,0 +1,26 @@
+{
+  "name": "@bitcoinerlab/thunderden-qr-bridge",
+  "version": "0.1.0",
+  "description": "Local QR transport for the Thunder Den offline signer",
+  "type": "module",
+  "bin": { "thunderden-qr-bridge": "bridge.js" },
+  "engines": { "node": ">=22" },
+  "files": ["bridge.js", "dist/app.js", "web/index.html", "web/style.css"],
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "start": "node bridge.js",
+    "build": "esbuild web/app.js --bundle --outfile=dist/app.js --platform=browser --inject:web/browser-globals.js",
+    "prepack": "npm run build",
+    "pretest": "npm run build",
+    "test": "node --test tests/bridge.test.js tests/qr.test.js"
+  },
+  "devDependencies": {
+    "@ngraveio/bc-ur": "1.1.13",
+    "buffer": "6.0.3",
+    "jsqr": "1.4.0",
+    "process": "0.11.10",
+    "qrcode": "1.5.4",
+    "esbuild": "0.28.2",
+    "playwright-core": "1.63.0"
+  }
+}
