@@ -18,7 +18,7 @@ test("packed CLI runs through npx offline with bundled assets and no runtime dep
   try {
     const { stdout } = await promisify(execFile)("npm", ["pack", "--json", "--pack-destination", temporary], { cwd: root });
     const [packed] = JSON.parse(stdout);
-    assert.equal(packed.entryCount, 6); // Manifest, README, server and three browser assets.
+    assert.equal(packed.entryCount, 9); // Manifest, README, server and six browser assets.
     assert.ok(packed.files.some((file) => file.path === "dist/app.js"));
     assert.ok(packed.files.every((file) => !file.path.endsWith(".py")));
     child = spawn("npx", ["--yes", "--offline", "--ignore-scripts", "--cache", join(temporary, "cache"),
@@ -33,7 +33,8 @@ test("packed CLI runs through npx offline with bundled assets and no runtime dep
     const info = await fetch(origin + "/info");
     assert.equal(info.status, 200);
     assert.equal(await info.text(), "thunderden-qr-bridge");
-    for (const path of ["/", "/app.js", "/style.css"]) {
+    for (const path of ["/", "/app.js", "/style.css", "/brand/thunderden.css",
+      "/brand/thunderden-horizontal-graphite.svg", "/brand/favicon.svg"]) {
       const response = await fetch(origin + path);
       assert.equal(response.status, 200);
       assert.ok((await response.arrayBuffer()).byteLength > 0);

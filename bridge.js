@@ -54,6 +54,9 @@ export async function startBridge(port = 32123) {
     ["/", "web/index.html", "text/html; charset=utf-8"],
     ["/app.js", "dist/app.js", "text/javascript"],
     ["/style.css", "web/style.css", "text/css"],
+    ["/brand/thunderden.css", "web/brand/thunderden.css", "text/css"],
+    ["/brand/thunderden-horizontal-graphite.svg", "web/brand/thunderden-horizontal-graphite.svg", "image/svg+xml"],
+    ["/brand/favicon.svg", "web/brand/favicon.svg", "image/svg+xml"],
   ].map(async ([path, file, type]) => [path, { body: await readFile(new URL(file, import.meta.url)), type }])));
   const session = randomBytes(16).toString("hex");
   let job = null, origin, fingerprint = null, ended = false;

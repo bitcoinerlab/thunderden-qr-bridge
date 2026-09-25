@@ -5,7 +5,7 @@
   "type": "module",
   "bin": { "thunderden-qr-bridge": "bridge.js" },
   "engines": { "node": ">=22" },
-  "files": ["bridge.js", "dist/app.js", "web/index.html", "web/style.css"],
+  "files": ["bridge.js", "dist/app.js", "web/index.html", "web/style.css", "web/brand/thunderden.css", "web/brand/thunderden-horizontal-graphite.svg", "web/brand/favicon.svg"],
   "publishConfig": { "access": "public" },
   "scripts": {
     "start": "node bridge.js",

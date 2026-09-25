@@ -39,7 +39,9 @@ npx .
 
 The default port is 32123. `--port 0` chooses an available port; `--no-open` prints
 the URL without launching a browser. The npm package includes the built frontend
-and has no runtime npm dependencies.
+and has no runtime npm dependencies. Its logo and colors come from the
+[Thunder Den brand](https://github.com/bitcoinerlab/thunderden-brand) and are
+bundled locally.
 
 With the bridge open and Thunder Den set to regtest, request an extended public
 key (xpub) through async-hwi. The browser page displays the request QR code:

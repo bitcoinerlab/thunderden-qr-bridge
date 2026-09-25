@@ -37,6 +37,8 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
       };
     });
     await page.goto(url.toString());
+    assert.equal(await page.locator("h1 img").evaluate((img) => img.complete && img.naturalWidth > 0), true);
+    assert.equal(await page.locator("body").evaluate((body) => getComputedStyle(body).backgroundColor), "rgb(250, 249, 246)");
     const request = (id) => cborEncode([3, Buffer.alloc(16, id), "regtest", 1,
       [[0x80000030, 0x80000001, 0x80000000, 0x80000002], 1]]);
     const session = (await fetch(url.origin + "/info")).headers.get("x-thunderden-session");

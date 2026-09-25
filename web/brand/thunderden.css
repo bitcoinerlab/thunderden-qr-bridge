@@ -1,0 +1,16 @@
+:root {
+  --td-color-graphite: #222320;
+  --td-color-warm-white: #FAF9F6;
+  --td-color-white: #FFFFFF;
+  --td-color-orange: #F7931A;
+  --td-color-secondary-text: #686B63;
+  --td-color-divider: #DEDFD8;
+  --td-color-dark-bg: #191A18;
+  --td-color-dark-text: #EFEFE9;
+  --td-color-success: #16A34A;
+  --td-color-warning: #F59E0B;
+  --td-color-error: #EF4444;
+  --td-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --td-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --td-radius-sm: 8px; --td-radius-md: 12px; --td-radius-lg: 16px;
+}
