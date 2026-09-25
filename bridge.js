@@ -5,13 +5,48 @@ import { spawn } from "node:child_process";
 import { parseArgs } from "node:util";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { randomBytes } from "node:crypto";
 
 export const MAX_REQUEST = 1024 * 1024 + 65536;
 export const MAX_REPLY = 2 * 1024 * 1024 + 65536;
 
-function requestId(data, prefix) {
-  return data.length >= 19 && data[0] === prefix && data[1] === 3 && data[2] === 0x50
-    ? data.subarray(3, 19).toString("hex") : null;
+// Inspect only the bounded command header; policies and PSBTs remain opaque.
+function header(data, reply = false) {
+  if (data.length < 19 || data[0] !== (reply ? 0x88 : 0x85) || data[1] !== 3 || data[2] !== 0x50)
+    throw new Error("Invalid command header");
+  let pos = 19;
+  const item = (major, maximum) => {
+    const tag = data[pos++];
+    if (tag === undefined || tag >> 5 !== major || (tag & 31) > 26) throw new Error("Invalid header type");
+    const info = tag & 31;
+    let value = info;
+    if (info >= 24) {
+      const size = 1 << (info - 24);
+      if (pos + size > data.length) throw new Error("Truncated header");
+      value = 0;
+      for (let i = 0; i < size; i++) value = value * 256 + data[pos++];
+      if (value < [24, 256, 65536][info - 24]) throw new Error("Non-canonical header");
+    }
+    if (value > maximum) throw new Error("Header field too large");
+    if (major === 0) return value;
+    if (pos + value > data.length) throw new Error("Truncated header");
+    const bytes = data.subarray(pos, pos + value);
+    pos += value;
+    if (major === 2) return bytes;
+    if (!bytes.every(c => c >= 32 && c <= 126)) throw new Error("Invalid header text");
+    return bytes.toString("ascii");
+  };
+  const result = { id: data.subarray(3, 19).toString("hex"), network: item(3, 16) };
+  if (reply) {
+    const fingerprint = item(2, 4);
+    if (fingerprint.length !== 4) throw new Error("Invalid fingerprint");
+    result.fingerprint = fingerprint.toString("hex");
+    item(3, 512); // Application version.
+  }
+  result.operation = item(0, 0xffffffff);
+  if (reply) result.status = item(0, 5);
+  if (pos >= data.length || data[pos] >> 5 !== 4) throw new Error("Missing command arguments/result");
+  return result;
 }
 
 export async function startBridge(port = 32123) {
@@ -20,12 +55,14 @@ export async function startBridge(port = 32123) {
     ["/app.js", "dist/app.js", "text/javascript"],
     ["/style.css", "web/style.css", "text/css"],
   ].map(async ([path, file, type]) => [path, { body: await readFile(new URL(file, import.meta.url)), type }])));
-  let job = null, origin;
+  const session = randomBytes(16).toString("hex");
+  let job = null, origin, fingerprint = null, ended = false;
   const server = createServer(async (req, res) => {
     const send = (status, body = "", type = "text/plain") => {
       res.writeHead(status, {
         "Content-Type": type, "Content-Length": Buffer.byteLength(body),
         "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+        "X-Thunderden-Session": session,
         "Referrer-Policy": "no-referrer", "Cross-Origin-Resource-Policy": "same-origin",
         "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
       });
@@ -41,6 +78,8 @@ export async function startBridge(port = 32123) {
         if (assets.has(req.url)) {
           const { body, type } = assets.get(req.url);
           send(200, body, type);
+        } else if (ended) {
+          send(412, "Signer changed. Restart the bridge to start a new session.");
         } else if (req.url === "/info") {
           send(200, "thunderden-qr-bridge");
         } else if (req.url === "/job") {
@@ -53,6 +92,10 @@ export async function startBridge(port = 32123) {
       if (req.headers["content-type"] !== "application/cbor") { send(415); return; }
       const action = /^\/(reply|cancel)\/([0-9a-f]{32})$/.exec(req.url);
       if (req.url !== "/exchange" && !action) { send(404); return; }
+      if (ended || (req.url === "/exchange" &&
+          (req.headersDistinct["x-thunderden-session"]?.length !== 1 || req.headers["x-thunderden-session"] !== session))) {
+        send(412, "Bridge session ended. Reconnect to the bridge."); return;
+      }
       const maximum = req.url === "/exchange" ? MAX_REQUEST : action[1] === "reply" ? MAX_REPLY : 0;
       const tooLarge = () => { res.setHeader("Connection", "close"); send(413); };
       if (Number(req.headers["content-length"]) > maximum) { tooLarge(); return; }
@@ -65,17 +108,27 @@ export async function startBridge(port = 32123) {
       }
       const body = Buffer.concat(chunks, length);
       if (res.destroyed) return;
+      if (ended) { send(412, "Bridge session ended. Restart the bridge."); return; }
       if (req.url === "/exchange") {
-        const id = requestId(body, 0x85);
-        if (!id) { send(400); return; }
+        const request = header(body);
         if (job) { send(409); return; }
-        job = { id, payload: body.toString("base64"), send, res };
+        job = { ...request, payload: body.toString("base64"), send, res };
         // Dropping the CLI connection discards this exchange, never retries it.
         res.on("close", () => { if (job?.res === res) job = null; });
       } else {
-        if (!job || action[2] !== job.id
-            || (action[1] === "reply" && requestId(body, 0x88) !== job.id)) {
-          send(409); return;
+        if (!job || action[2] !== job.id) { send(409); return; }
+        if (action[1] === "reply") {
+          const reply = header(body, true);
+          if (reply.id !== job.id || reply.operation !== job.operation
+              || (reply.network !== job.network && reply.status !== 4)) { send(409); return; }
+          if (fingerprint !== null && reply.fingerprint !== fingerprint) {
+            ended = true;
+            job.send(412);
+            job = null;
+            send(412, "Signer changed. Restart the bridge to start a new session.");
+            return;
+          }
+          if (reply.status === 0) fingerprint = reply.fingerprint;
         }
         job.send(action[1] === "reply" ? 200 : 410, body, "application/cbor");
         job = null;

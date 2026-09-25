@@ -1,5 +1,5 @@
 #!/bin/sh
 # Public fixtures only. First build the signer's standard Docker test image.
-project="$(dirname "$0")/../thunderden"
+project="$(dirname "$0")/../../thunderden"
 exec docker compose --project-directory "$project" -f "$project/compose.yaml" \
     run --rm -T test /build/qr-command-runner "$@"

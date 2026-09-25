@@ -34,10 +34,12 @@ async function animate(id, version, first) {
 async function poll() {
   try {
     const response = await api("/job");
+    if (response.status === 412) throw new Error("Signer changed. Restart the bridge to start a new session.");
     if (!response.ok) throw new Error("Could not reach the bridge. Reopen its local page.");
     let next = await response.json();
     if (next?.id === finishedId) next = null;
     if (next?.id !== job?.id) {
+      if (!next && job) get("status").textContent = "Waiting for a wallet request.";
       clear();
       if (next) {
         job = next; sender = encoder(Buffer.from(next.payload, "base64")); decoder = new Decoder(); paused = false;
@@ -75,6 +77,9 @@ async function scan(id, camera) {
             finishedId = id;
             clear(); get("status").textContent = "Response delivered. The wallet will check it."; return;
           }
+          if (response.status === 412) {
+            clear(); get("status").textContent = "Signer changed. Restart the bridge to start a new session."; return;
+          }
           decoder = new Decoder();
           get("progress").textContent = "That response is for a different request. Scan the current response.";
         }
@@ -108,9 +113,9 @@ get("cancel").onclick = async () => {
     const response = await api(`/cancel/${id}`, "POST", new Uint8Array());
     if (response.ok && job?.id === id) {
       finishedId = id; clear();
-      get("status").textContent = "Request cancelled here. Press Esc on the offline laptop too.";
+      get("status").textContent = "Request cancelled here. Press Esc on the offline device too.";
     }
-  } catch { get("status").textContent = "Could not reach the bridge. Press Esc on the offline laptop and try cancelling again."; }
+  } catch { get("status").textContent = "Could not reach the bridge. Press Esc on the offline device and try cancelling again."; }
 };
 window.addEventListener("pagehide", stopCamera);
 poll();

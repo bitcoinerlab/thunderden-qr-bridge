@@ -1,33 +1,25 @@
 // Core funding, CLI/HTTP signing, broadcast and CSV maturity. Public fixtures only.
 import assert from "node:assert/strict";
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { startBridge } from "../bridge.js";
-
-const exec = promisify(execFile);
-function command(file, args, { input, ...options } = {}) {
-  const result = exec(file, args, { encoding: "utf8", timeout: 30000, maxBuffer: 4 * 1024 * 1024, ...options });
-  result.child.stdin.end(input);
-  return result;
-}
+import { command, runClient } from "./client.js";
 
 async function main() {
   const { BITCOIND: bitcoind, BHWI_BIN: bhwi, ASYNC_HWI_BIN: asyncHwi } = process.env;
   assert.ok(bitcoind, "Set BITCOIND");
   assert.ok(Boolean(bhwi) !== Boolean(asyncHwi), "Set exactly one of BHWI_BIN or ASYNC_HWI_BIN");
   const bitcoinCli = join(dirname(bitcoind), "bitcoin-cli");
-  const runner = process.env.TD_RUNNER || fileURLToPath(new URL("../native-runner", import.meta.url));
+  const runner = process.env.TD_RUNNER || fileURLToPath(new URL("./signer-runner", import.meta.url));
   const fixture = JSON.parse((await command(runner, ["--fixtures"])).stdout);
   // Exercise async-hwi's zero-configuration default endpoint.
-  const bridge = await startBridge(asyncHwi ? 32123 : 0);
-  const origin = `http://127.0.0.1:${bridge.address().port}`;
+  const bridges = { alice: await startBridge(asyncHwi ? 32123 : 0), bob: await startBridge(0) };
   const root = await mkdtemp(join(tmpdir(), "thunderden-regtest-"));
   const reservation = createServer().listen(0, "127.0.0.1");
   await once(reservation, "listening");
@@ -43,13 +35,9 @@ async function main() {
       method, ...params.map((p) => typeof p === "string" ? p : JSON.stringify(p))]);
     try { return JSON.parse(stdout); } catch { return stdout.trim(); }
   }
-  async function api(path, data) {
-    const response = await fetch(origin + path, { method: data === undefined ? "GET" : "POST", body: data,
-      headers: { "Content-Type": "application/cbor" }, signal: AbortSignal.timeout(5000) });
-    assert.ok(response.ok, `${path}: HTTP ${response.status}`);
-    return response;
-  }
   async function run(signer, operation, { proof, index = 0, change = false, psbt, output } = {}) {
+    const bridge = bridges[signer];
+    const origin = `http://127.0.0.1:${bridge.address().port}`;
     let args;
     if (bhwi) {
       args = ["--network", "regtest", "--device-type", "thunderden", "--device-path", `qr:127.0.0.1:${bridge.address().port}`];
@@ -70,28 +58,11 @@ async function main() {
     }
     const env = { ...process.env };
     delete env.THUNDERDEN_BRIDGE_URL;
-    const client = command(bhwi || asyncHwi, args, { env });
-    let finished = false;
-    client.then(() => { finished = true; }, () => { finished = true; });
-    const handled = new Set();
-    try {
-      while (!finished) {
-        const job = await (await api("/job")).json();
-        if (job && !handled.has(job.id)) {
-          handled.add(job.id);
-          const { stdout } = await command(runner, ["--" + signer], { input: Buffer.from(job.payload, "base64").toString("hex") + "\n" });
-          await api("/reply/" + job.id, Buffer.from(stdout.trim(), "hex"));
-        }
-        await delay(10);
-      }
-      const { stdout, stderr } = await client;
-      const result = (bhwi ? stdout : stderr).trim();
-      if (asyncHwi && operation === "sign") await writeFile(output, result);
-      return result;
-    } finally {
-      client.child.kill();
-      await client.catch(() => {});
-    }
+    if (asyncHwi && signer === "bob") env.THUNDERDEN_BRIDGE_URL = origin + "/exchange";
+    const { stdout, stderr } = await runClient({ origin, binary: bhwi || asyncHwi, args, signer, runner, env });
+    const result = (bhwi ? stdout : stderr).trim();
+    if (asyncHwi && operation === "sign") await writeFile(output, result);
+    return result;
   }
   try {
     const deadline = Date.now() + 20000;
@@ -105,7 +76,8 @@ async function main() {
     const proofs = {};
     for (const name of ["alice", "bob"]) {
       const xpub = await run(name, "xpub");
-      assert.ok(xpub.startsWith("tpub") && fixture.keys.some((key) => key.endsWith(xpub)));
+      const key = fixture.keys[name === "alice" ? 1 : 2];
+      assert.equal(xpub, key.slice(key.indexOf("]") + 1));
       proofs[name] = await run(name, "register");
       assert.match(proofs[name], /^[0-9a-f]{64}$/);
     }
@@ -116,7 +88,7 @@ async function main() {
     const [receive] = await rpc("deriveaddresses", receiveDesc, [0, 0]);
     const [change] = await rpc("deriveaddresses", changeDesc, [3, 3]);
     assert.equal(await run("alice", "address", { proof: proofs.alice }), bhwi ? receive : "");
-    // The async-hwi CLI displays receive addresses; its native HWI test covers change.
+    // The async-hwi CLI displays receive addresses; async-hwi.test.js covers BIP86 change.
     assert.equal(await run("bob", "address", { proof: proofs.bob, change: Boolean(bhwi), index: 3 }), bhwi ? change : "");
     console.log("PASS: CLI selection, xpub, registration and address confirmation");
 
@@ -164,7 +136,8 @@ async function main() {
     daemon.kill();
     const timer = setTimeout(() => daemon.kill("SIGKILL"), 10000);
     await exited.finally(() => clearTimeout(timer));
-    await new Promise((resolve) => { bridge.close(resolve); bridge.closeAllConnections(); });
+    for (const bridge of Object.values(bridges))
+      await new Promise((resolve) => { bridge.close(resolve); bridge.closeAllConnections(); });
     await rm(root, { recursive: true, force: true });
   }
 }

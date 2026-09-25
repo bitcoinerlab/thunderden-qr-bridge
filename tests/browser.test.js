@@ -2,13 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
 import { encoder } from "../web/qr.js";
 import { cborEncode, cborDecode } from "@ngraveio/bc-ur/dist/cbor.js";
 
-test("browser renders requests, scans a simulated camera, ignores stale replies and cancels", { timeout: 60000 }, async () => {
+test("browser renders requests, scans a simulated camera, rejects stale replies and clears abandoned jobs", { timeout: 60000 }, async () => {
   const server = spawn(process.execPath, ["bridge.js", "--port", "0", "--no-open"], { stdio: ["ignore", "pipe", "inherit"] });
   const startup = createInterface({ input: server.stdout });
   let browser, native;
@@ -38,8 +39,9 @@ test("browser renders requests, scans a simulated camera, ignores stale replies 
     await page.goto(url.toString());
     const request = (id) => cborEncode([3, Buffer.alloc(16, id), "regtest", 1,
       [[0x80000030, 0x80000001, 0x80000000, 0x80000002], 1]]);
-    const post = (id) => fetch(url.origin + "/exchange", { method: "POST", body: request(id),
-      headers: { "Content-Type": "application/cbor" }, signal: abort.signal });
+    const session = (await fetch(url.origin + "/info")).headers.get("x-thunderden-session");
+    const post = (id, signal = abort.signal) => fetch(url.origin + "/exchange", { method: "POST", body: request(id),
+      headers: { "Content-Type": "application/cbor", "X-Thunderden-Session": session }, signal });
     const foreign = await browser.newPage();
     await foreign.goto("data:text/html,foreign origin");
     assert.equal(await foreign.evaluate(async (origin) => {
@@ -63,7 +65,7 @@ test("browser renders requests, scans a simulated camera, ignores stale replies 
     });
     const scanned = jsQR(new Uint8ClampedArray(image.data), image.width, image.height);
     assert.ok(scanned, "Browser request canvas was unreadable");
-    native = spawn(process.env.TD_RUNNER || "./native-runner", ["--qr-alice"], { stdio: ["pipe", "pipe", "inherit"] });
+    native = spawn(process.env.TD_RUNNER || fileURLToPath(new URL("./signer-runner", import.meta.url)), ["--qr-alice"], { stdio: ["pipe", "pipe", "inherit"] });
     native.stdin.end(scanned.data + "\n");
     const lines = createInterface({ input: native.stdout });
     const frames = [];
@@ -76,7 +78,7 @@ test("browser renders requests, scans a simulated camera, ignores stale replies 
       await page.evaluate((data) => window.paintQR(data), { size: modules.size, data: Array.from(modules.data) });
       await page.waitForTimeout(350);
     }
-    const stale = encoder(cborEncode([3, Buffer.alloc(16, 9), "regtest", Buffer.alloc(4), "development", 1, 1, []]));
+    const stale = encoder(cborEncode([3, Buffer.alloc(16, 9), "regtest", Buffer.alloc(4), "0.0.1", 1, 1, []]));
     for (let i = 0; i < stale.fragmentsLength; i++) await paint(stale.nextPart());
     await page.locator("#progress").filter({ hasText: "different request" }).waitFor();
     let delivered = false;
@@ -87,6 +89,7 @@ test("browser renders requests, scans a simulated camera, ignores stale replies 
     assert.ok(delivered, "Browser camera did not finish the response");
     const reply = cborDecode(await result);
     assert.equal(reply[0], 3);
+    assert.equal(reply[4], "0.0.1");
     assert.equal(reply[6], 0);
     assert.deepEqual(reply[1], Buffer.alloc(16, 1));
     await page.waitForFunction(() => window.testCamera.getTracks().every((track) => track.readyState === "ended"));
@@ -94,8 +97,19 @@ test("browser renders requests, scans a simulated camera, ignores stale replies 
     await page.locator("#cancel").waitFor({ state: "visible" });
     await page.locator("#cancel").click();
     assert.equal((await cancelled).status, 410);
+    const disconnected = new AbortController();
+    const abandoned = post(3, disconnected.signal);
+    abandoned.catch(() => {});
+    await page.locator("#status").filter({ hasText: "Request ready" }).waitFor();
+    await page.locator("#camera").click();
+    await page.waitForFunction(() => window.testCamera.getTracks().some((track) => track.readyState === "live"));
+    disconnected.abort();
+    await assert.rejects(abandoned);
+    await page.locator("#status").filter({ hasText: "Waiting for a wallet request." }).waitFor();
+    assert.equal(await page.locator("#job").isHidden(), true);
+    await page.waitForFunction(() => window.testCamera.getTracks().every((track) => track.readyState === "ended"));
     assert.deepEqual(errors, []);
-    console.log(`Browser: ${await browser.version()}; public xpub response and cancellation passed`);
+    console.log(`Browser: ${await browser.version()}; public xpub response, cancellation and client disconnect passed`);
   } finally {
     abort.abort(); native?.kill(); await browser?.close(); startup.close(); server.kill();
   }
