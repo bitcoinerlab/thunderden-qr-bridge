@@ -37,6 +37,8 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
       };
     });
     await page.goto(url.toString());
+    assert.match(await page.locator("#status").textContent(), /start an action in your wallet app on this computer/);
+    assert.equal(await page.locator("#job").isHidden(), true);
     assert.equal(await page.locator("h1 img").evaluate((img) => img.complete && img.naturalWidth > 0), true);
     assert.equal(await page.locator("body").evaluate((body) => getComputedStyle(body).backgroundColor), "rgb(250, 249, 246)");
     const request = (id) => cborEncode([3, Buffer.alloc(16, id), "regtest", 1,
@@ -82,7 +84,7 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     }
     const stale = encoder(cborEncode([3, Buffer.alloc(16, 9), "regtest", Buffer.alloc(4), "0.0.1", 1, 1, []]));
     for (let i = 0; i < stale.fragmentsLength; i++) await paint(stale.nextPart());
-    await page.locator("#progress").filter({ hasText: "different request" }).waitFor();
+    await page.locator("#progress").filter({ hasText: "could not use that QR code for this request" }).waitFor();
     let delivered = false;
     const result = pending.then(async (response) => { delivered = true; assert.equal(response.status, 200); return Buffer.from(await response.arrayBuffer()); });
     for (let i = 0; i < 10 && !delivered; i++) for (const frame of frames) {
@@ -102,12 +104,12 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     const disconnected = new AbortController();
     const abandoned = post(3, disconnected.signal);
     abandoned.catch(() => {});
-    await page.locator("#status").filter({ hasText: "Request ready" }).waitFor();
+    await page.locator("#status").filter({ hasText: "A request from your wallet app is ready." }).waitFor();
     await page.locator("#camera").click();
     await page.waitForFunction(() => window.testCamera.getTracks().some((track) => track.readyState === "live"));
     disconnected.abort();
     await assert.rejects(abandoned);
-    await page.locator("#status").filter({ hasText: "Waiting for a wallet request." }).waitFor();
+    await page.locator("#status").filter({ hasText: "start an action in your wallet app on this computer" }).waitFor();
     assert.equal(await page.locator("#job").isHidden(), true);
     await page.waitForFunction(() => window.testCamera.getTracks().every((track) => track.readyState === "ended"));
     assert.deepEqual(errors, []);

@@ -17,7 +17,7 @@ function stopCamera() {
   stream?.getTracks().forEach((track) => track.stop());
   stream = null; get("video").srcObject = null; get("video").hidden = true;
   capture.width = capture.height = 0;
-  get("camera").textContent = "Start response camera";
+  get("camera").textContent = "Start camera to scan the QR code";
 }
 function clear() {
   stopCamera(); clearTimeout(timer); job = null; sender = null; decoder = null;
@@ -29,24 +29,24 @@ async function animate(id, version, first) {
     if (!paused) await QRCode.toCanvas(get("qr"), (first ?? sender.nextPart()).toUpperCase(),
       { version, errorCorrectionLevel: "L", margin: 4, width: 600 });
     if (job?.id === id && sender.fragmentsLength > 1) timer = setTimeout(() => animate(id, version), 250);
-  } catch { get("status").textContent = "Could not display the QR. Cancel and try again."; }
+  } catch { get("status").textContent = "Could not show this QR code. Cancel the request and try again."; }
 }
 async function poll() {
   try {
     const response = await api("/job");
-    if (response.status === 412) throw new Error("Signer changed. Restart the bridge to start a new session.");
-    if (!response.ok) throw new Error("Could not reach the bridge. Reopen its local page.");
+    if (response.status === 412) throw new Error("The offline device is using a different signing key. Restart the QR bridge before trying again.");
+    if (!response.ok) throw new Error("Cannot reach the QR bridge. Check that it is running, then reopen this page.");
     let next = await response.json();
     if (next?.id === finishedId) next = null;
     if (next?.id !== job?.id) {
-      if (!next && job) get("status").textContent = "Waiting for a wallet request.";
+      if (!next && job) get("status").textContent = "To begin, start an action in your wallet app on this computer. This page will show a QR code when the request is ready.";
       clear();
       if (next) {
         job = next; sender = encoder(Buffer.from(next.payload, "base64")); decoder = new Decoder(); paused = false;
-        get("pause").textContent = "Pause QR";
+        get("pause").textContent = "Pause QR codes";
         get("pause").hidden = sender.fragmentsLength === 1;
-        get("frames").textContent = sender.fragmentsLength === 1 ? "One QR code." : `${sender.fragmentsLength} source frames. Scanning collects them automatically.`;
-        get("status").textContent = "Request ready. Scan it with Thunder Den.";
+        get("frames").textContent = sender.fragmentsLength === 1 ? "This request fits in one QR code." : "This request uses several QR codes. Keep your offline device pointed at this screen until it finishes scanning.";
+        get("status").textContent = "A request from your wallet app is ready.";
         get("progress").textContent = ""; get("job").hidden = false;
         const first = sender.nextPart();
         const probe = "A".repeat(first.length + 64);
@@ -69,25 +69,25 @@ async function scan(id, camera) {
       const qr = jsQR(image.data, image.width, image.height, { inversionAttempts: "dontInvert" });
       if (qr) {
         const payload = decoder.receive(qr.data);
-        get("progress").textContent = `Collecting response: ${decoder.progress()}%`;
+        get("progress").textContent = `Scanning the QR code: ${decoder.progress()}%`;
         if (payload) {
           const response = await api(`/reply/${id}`, "POST", payload);
           if (job?.id !== id || stream !== camera) return;
           if (response.ok) {
             finishedId = id;
-            clear(); get("status").textContent = "Response delivered. The wallet will check it."; return;
+            clear(); get("status").textContent = "Reply sent to your wallet app. Check the result there."; return;
           }
           if (response.status === 412) {
-            clear(); get("status").textContent = "Signer changed. Restart the bridge to start a new session."; return;
+            clear(); get("status").textContent = "The offline device is using a different signing key. Restart the QR bridge before trying again."; return;
           }
           decoder = new Decoder();
-          get("progress").textContent = "That response is for a different request. Scan the current response.";
+          get("progress").textContent = "We could not use that QR code for this request. Check your offline device and try scanning its code again.";
         }
       }
     }
   } catch {
     decoder = new Decoder();
-    get("progress").textContent = "Could not read that response. Keep the current QR in view.";
+    get("progress").textContent = "Could not read that QR code. Keep your offline device's screen in view and try again.";
   }
   if (stream === camera && job?.id === id) setTimeout(() => scan(id, camera), 200);
 }
@@ -100,12 +100,12 @@ get("camera").onclick = async () => {
     const camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 960 } }, audio: false });
     if (job?.id !== id) { camera.getTracks().forEach((track) => track.stop()); return; }
     stream = camera; decoder = new Decoder(); get("video").srcObject = stream;
-    get("video").hidden = false; get("camera").textContent = "Stop response camera";
+    get("video").hidden = false; get("camera").textContent = "Stop camera";
     scan(id, camera);
-  } catch { get("progress").textContent = "Could not open the camera. Check browser permission and try again."; }
+  } catch { get("progress").textContent = "Could not open the camera. Allow camera access in your browser, then try again."; }
   finally { get("camera").disabled = false; }
 };
-get("pause").onclick = () => { paused = !paused; get("pause").textContent = paused ? "Resume QR" : "Pause QR"; };
+get("pause").onclick = () => { paused = !paused; get("pause").textContent = paused ? "Resume QR codes" : "Pause QR codes"; };
 get("cancel").onclick = async () => {
   if (!job) return;
   const id = job.id;
@@ -113,9 +113,9 @@ get("cancel").onclick = async () => {
     const response = await api(`/cancel/${id}`, "POST", new Uint8Array());
     if (response.ok && job?.id === id) {
       finishedId = id; clear();
-      get("status").textContent = "Request cancelled here. Press Esc on the offline device too.";
+      get("status").textContent = "Request cancelled on this page. Press Esc on your offline device too.";
     }
-  } catch { get("status").textContent = "Could not reach the bridge. Press Esc on the offline device and try cancelling again."; }
+  } catch { get("status").textContent = "Cannot reach the QR bridge. Press Esc on your offline device and check that the bridge is running."; }
 };
 window.addEventListener("pagehide", stopCamera);
 poll();

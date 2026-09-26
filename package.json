@@ -1,6 +1,6 @@
 {
   "name": "@bitcoinerlab/thunderden-qr-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local QR transport for the Thunder Den offline signer",
   "type": "module",
   "bin": { "thunderden-qr-bridge": "bridge.js" },
