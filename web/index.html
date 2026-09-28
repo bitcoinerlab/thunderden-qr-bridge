@@ -13,18 +13,17 @@
   <h1><img src="/brand/thunderden-horizontal-graphite.svg" alt="Thunder Den" width="220" height="49"> <span>QR bridge</span></h1>
   <p id="status" role="status">To begin, start an action in your wallet app on this computer. This page will show a QR code when the request is ready.</p>
   <section id="job" hidden>
-    <h2>1. Scan this QR code with the device running Thunder Den</h2>
+    <h2 id="request-title">1. Scan this QR code with the device running Thunder Den</h2>
     <canvas id="qr" aria-label="Request QR code"></canvas>
     <p id="frames"></p>
     <button id="pause">Pause QR codes</button>
-    <h2>2. Follow the instructions on your offline device</h2>
-    <p>Review any details shown on the device. When it shows a QR code, use the camera on this computer to scan it.</p>
-    <p>Enter your recovery words and passphrase on the offline device before starting the camera. Never enter them on this page.</p>
-    <button id="camera">Start camera to scan the QR code</button>
+    <h2>2. Follow the instructions on the device running Thunder Den</h2>
+    <p>When it shows a QR code, click <strong>Scan QR code</strong> below.</p>
+    <button id="camera">Scan QR code</button>
     <video id="video" autoplay playsinline muted hidden></video>
     <p id="progress"></p>
     <button id="cancel">Cancel this request</button>
-    <p>Cancelling here does not cancel the request on your offline device. Press Esc there too.</p>
+    <p>Cancelling here does not cancel the request on the device running Thunder Den. Press Esc there too.</p>
   </section>
 </body>
 </html>

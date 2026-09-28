@@ -41,10 +41,10 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     assert.equal(await page.locator("#job").isHidden(), true);
     assert.equal(await page.locator("h1 img").evaluate((img) => img.complete && img.naturalWidth > 0), true);
     assert.equal(await page.locator("body").evaluate((body) => getComputedStyle(body).backgroundColor), "rgb(250, 249, 246)");
-    const request = (id) => cborEncode([3, Buffer.alloc(16, id), "regtest", 1,
-      [[0x80000030, 0x80000001, 0x80000000, 0x80000002], 1]]);
+    const request = (id, operation) => cborEncode([3, Buffer.alloc(16, id), "regtest", operation,
+      operation === 0 ? [] : [[0x80000030, 0x80000001, 0x80000000, 0x80000002], 1]]);
     const session = (await fetch(url.origin + "/info")).headers.get("x-thunderden-session");
-    const post = (id, signal = abort.signal) => fetch(url.origin + "/exchange", { method: "POST", body: request(id),
+    const post = (id, signal = abort.signal, operation = 1) => fetch(url.origin + "/exchange", { method: "POST", body: request(id, operation),
       headers: { "Content-Type": "application/cbor", "X-Thunderden-Session": session }, signal });
     const foreign = await browser.newPage();
     await foreign.goto("data:text/html,foreign origin");
@@ -59,6 +59,8 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     const pending = post(1);
     pending.catch(() => {}); // Teardown can abort a still-pending exchange.
     await page.locator("#qr").waitFor({ state: "visible" });
+    assert.equal(await page.locator("#request-title").textContent(), "1. Scan this QR code with the device running Thunder Den");
+    assert.equal(await page.locator("#camera").textContent(), "Scan QR code");
     await page.waitForFunction(() => {
       const canvas = document.getElementById("qr");
       return canvas.width > 300 && canvas.width === canvas.height;
@@ -97,14 +99,18 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     assert.equal(reply[6], 0);
     assert.deepEqual(reply[1], Buffer.alloc(16, 1));
     await page.waitForFunction(() => window.testCamera.getTracks().every((track) => track.readyState === "ended"));
-    const cancelled = post(2);
+    const cancelled = post(2, abort.signal, 0);
     await page.locator("#cancel").waitFor({ state: "visible" });
+    await page.locator("#request-title").filter({ hasText: "Scan this QR code with Thunder Den to connect it to your wallet app" }).waitFor();
+    assert.equal(await page.locator("#camera").textContent(), "Scan QR code");
     await page.locator("#cancel").click();
     assert.equal((await cancelled).status, 410);
+    await page.locator("#job").waitFor({ state: "hidden" });
     const disconnected = new AbortController();
     const abandoned = post(3, disconnected.signal);
     abandoned.catch(() => {});
     await page.locator("#status").filter({ hasText: "A request from your wallet app is ready." }).waitFor();
+    assert.equal(await page.locator("#request-title").textContent(), "1. Scan this QR code with the device running Thunder Den");
     await page.locator("#camera").click();
     await page.waitForFunction(() => window.testCamera.getTracks().some((track) => track.readyState === "live"));
     disconnected.abort();

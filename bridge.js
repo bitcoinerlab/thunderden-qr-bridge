@@ -86,7 +86,7 @@ export async function startBridge(port = 32123) {
         } else if (req.url === "/info") {
           send(200, "thunderden-qr-bridge");
         } else if (req.url === "/job") {
-          send(200, JSON.stringify(job ? { id: job.id, payload: job.payload } : null), "application/json");
+          send(200, JSON.stringify(job ? { id: job.id, payload: job.payload, operation: job.operation } : null), "application/json");
         } else send(404);
         return;
       }

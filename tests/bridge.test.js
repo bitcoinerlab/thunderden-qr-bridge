@@ -85,6 +85,7 @@ test("one exchange, cancellation and stale reply rejection", async (t) => {
   const { request, waitJob } = await setup(t);
   const old = request("POST", "/exchange", message(1));
   const job = await waitJob(id(1));
+  assert.equal(job.operation, 0);
   assert.deepEqual(Buffer.from(job.payload, "base64"), message(1));
   assert.equal((await request("POST", "/exchange", message(2))).status, 409);
   assert.equal((await request("POST", `/cancel/${id(1)}`)).status, 204);

@@ -70,9 +70,10 @@ request's inner CBOR bytes and stays open until the bridge has an answer. Only
 one exchange can be waiting at a time.
 
 The page checks `GET /job` about every half second. The response is `null` when
-idle, or an `id` in hex and `payload` in base64 for the waiting request. This
-job ID comes from the request and is separate from the bridge session ID. The
-page displays the payload as a `ur:bytes` QR. After the user starts the camera,
+idle, or an `id` in hex, `payload` in base64 and the numeric `operation` for the
+waiting request. This job ID comes from the request and is separate from the
+bridge session ID.
+The page displays the payload as a `ur:bytes` QR. After the user starts the camera,
 the page reads Thunder Den's reply QR, removes the QR wrapper and sends the
 reply bytes to `POST /reply/JOB_ID`. The bridge checks that the reply matches
 the pending request, then completes `/exchange` with HTTP 200 and those bytes.

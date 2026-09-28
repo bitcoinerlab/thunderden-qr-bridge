@@ -17,7 +17,7 @@ function stopCamera() {
   stream?.getTracks().forEach((track) => track.stop());
   stream = null; get("video").srcObject = null; get("video").hidden = true;
   capture.width = capture.height = 0;
-  get("camera").textContent = "Start camera to scan the QR code";
+  get("camera").textContent = "Scan QR code";
 }
 function clear() {
   stopCamera(); clearTimeout(timer); job = null; sender = null; decoder = null;
@@ -34,7 +34,7 @@ async function animate(id, version, first) {
 async function poll() {
   try {
     const response = await api("/job");
-    if (response.status === 412) throw new Error("The offline device is using a different signing key. Restart the QR bridge before trying again.");
+    if (response.status === 412) throw new Error("The device running Thunder Den is using a different signing key. Restart the QR bridge before trying again.");
     if (!response.ok) throw new Error("Cannot reach the QR bridge. Check that it is running, then reopen this page.");
     let next = await response.json();
     if (next?.id === finishedId) next = null;
@@ -43,9 +43,12 @@ async function poll() {
       clear();
       if (next) {
         job = next; sender = encoder(Buffer.from(next.payload, "base64")); decoder = new Decoder(); paused = false;
+        get("request-title").textContent = next.operation === 0
+          ? "1. Scan this QR code with Thunder Den to connect it to your wallet app"
+          : "1. Scan this QR code with the device running Thunder Den";
         get("pause").textContent = "Pause QR codes";
         get("pause").hidden = sender.fragmentsLength === 1;
-        get("frames").textContent = sender.fragmentsLength === 1 ? "This request fits in one QR code." : "This request uses several QR codes. Keep your offline device pointed at this screen until it finishes scanning.";
+        get("frames").textContent = sender.fragmentsLength === 1 ? "This request fits in one QR code." : "This request uses several QR codes. Keep the device running Thunder Den pointed at this screen until it finishes scanning.";
         get("status").textContent = "A request from your wallet app is ready.";
         get("progress").textContent = ""; get("job").hidden = false;
         const first = sender.nextPart();
@@ -78,16 +81,16 @@ async function scan(id, camera) {
             clear(); get("status").textContent = "Reply sent to your wallet app. Check the result there."; return;
           }
           if (response.status === 412) {
-            clear(); get("status").textContent = "The offline device is using a different signing key. Restart the QR bridge before trying again."; return;
+            clear(); get("status").textContent = "The device running Thunder Den is using a different signing key. Restart the QR bridge before trying again."; return;
           }
           decoder = new Decoder();
-          get("progress").textContent = "We could not use that QR code for this request. Check your offline device and try scanning its code again.";
+          get("progress").textContent = "We could not use that QR code for this request. Check the device running Thunder Den and try scanning its code again.";
         }
       }
     }
   } catch {
     decoder = new Decoder();
-    get("progress").textContent = "Could not read that QR code. Keep your offline device's screen in view and try again.";
+    get("progress").textContent = "Could not read that QR code. Keep the screen of the device running Thunder Den in view and try again.";
   }
   if (stream === camera && job?.id === id) setTimeout(() => scan(id, camera), 200);
 }
@@ -113,9 +116,9 @@ get("cancel").onclick = async () => {
     const response = await api(`/cancel/${id}`, "POST", new Uint8Array());
     if (response.ok && job?.id === id) {
       finishedId = id; clear();
-      get("status").textContent = "Request cancelled on this page. Press Esc on your offline device too.";
+      get("status").textContent = "Request cancelled on this page. Press Esc on the device running Thunder Den too.";
     }
-  } catch { get("status").textContent = "Cannot reach the QR bridge. Press Esc on your offline device and check that the bridge is running."; }
+  } catch { get("status").textContent = "Cannot reach the QR bridge. Press Esc on the device running Thunder Den and check that the bridge is running."; }
 };
 window.addEventListener("pagehide", stopCamera);
 poll();

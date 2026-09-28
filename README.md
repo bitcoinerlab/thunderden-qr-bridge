@@ -51,8 +51,8 @@ hwi --network regtest xpub get --path "m/48h/1h/0h/2h"
 ```
 
 The command waits while you scan the request QR with Thunder Den. Review the
-request on the offline device. When its reply QR is ready, click **Start response
-camera** on the bridge page and point the online computer's camera at it. The
+request on the device running Thunder Den. When its reply QR is ready, click
+**Scan QR code** on the bridge page and point this computer's camera at it. The
 bridge delivers the scanned reply to async-hwi so the command can finish
 without you copying anything between programs.
 
