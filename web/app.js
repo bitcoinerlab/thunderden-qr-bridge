@@ -4,8 +4,9 @@ import jsQR from "jsqr";
 import { encoder, Decoder } from "./qr.js";
 
 const get = (id) => document.getElementById(id);
+const requestNames = ["Connect Thunder Den", "Share a public key", "Register a wallet", "Verify an address", "Review and sign a transaction"];
 let job = null, sender = null, decoder = null, stream = null, paused = false, timer = null;
-let finishedId = null;
+let finishedId = null, requestNumber = 0;
 const capture = document.createElement("canvas");
 const context = capture.getContext("2d", { willReadFrequently: true });
 
@@ -22,6 +23,7 @@ function stopCamera() {
 function clear() {
   stopCamera(); clearTimeout(timer); job = null; sender = null; decoder = null;
   get("job").hidden = true;
+  document.title = "Thunder Den QR bridge";
 }
 async function animate(id, version, first) {
   if (job?.id !== id) return;
@@ -42,15 +44,18 @@ async function poll() {
       if (!next && job) get("status").textContent = "To begin, start an action in your wallet app on this computer. This page will show a QR code when the request is ready.";
       clear();
       if (next) {
-        job = next; sender = encoder(Buffer.from(next.payload, "base64")); decoder = new Decoder(); paused = false;
+        job = { ...next, number: ++requestNumber, name: requestNames[next.operation] ?? "Wallet request" };
+        sender = encoder(Buffer.from(next.payload, "base64")); decoder = new Decoder(); paused = false;
         get("request-title").textContent = next.operation === 0
           ? "1. Scan this QR code with Thunder Den to connect it to your wallet app"
-          : "1. Scan this QR code with the device running Thunder Den";
+          : `1. Scan this ${job.number > 1 ? "new " : ""}QR code with Thunder Den`;
         get("pause").textContent = "Pause QR codes";
         get("pause").hidden = sender.fragmentsLength === 1;
         get("frames").textContent = sender.fragmentsLength === 1 ? "This request fits in one QR code." : "This request uses several QR codes. Keep the device running Thunder Den pointed at this screen until it finishes scanning.";
-        get("status").textContent = "A request from your wallet app is ready.";
+        get("status").textContent = `New request ${job.number}: ${job.name}`;
+        document.title = `Request ${job.number}: ${job.name} — Thunder Den QR bridge`;
         get("progress").textContent = ""; get("job").hidden = false;
+        get("status").scrollIntoView();
         const first = sender.nextPart();
         const probe = "A".repeat(first.length + 64);
         const version = QRCode.create(probe, { errorCorrectionLevel: "L" }).version;
@@ -78,7 +83,11 @@ async function scan(id, camera) {
           if (job?.id !== id || stream !== camera) return;
           if (response.ok) {
             finishedId = id;
-            clear(); get("status").textContent = "Reply sent to your wallet app. Check the result there."; return;
+            get("last-reply").textContent = `Reply sent for request ${job.number}: ${job.name}.`;
+            get("last-reply").hidden = false;
+            clear();
+            get("status").textContent = "Check your wallet app. Keep this page open: another request may follow with a new QR code.";
+            return;
           }
           if (response.status === 412) {
             clear(); get("status").textContent = "The device running Thunder Den is using a different signing key. Restart the QR bridge before trying again."; return;

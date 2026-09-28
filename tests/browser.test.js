@@ -59,7 +59,8 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     const pending = post(1);
     pending.catch(() => {}); // Teardown can abort a still-pending exchange.
     await page.locator("#qr").waitFor({ state: "visible" });
-    assert.equal(await page.locator("#request-title").textContent(), "1. Scan this QR code with the device running Thunder Den");
+    assert.equal(await page.locator("#status").textContent(), "New request 1: Share a public key");
+    assert.equal(await page.locator("#request-title").textContent(), "1. Scan this QR code with Thunder Den");
     assert.equal(await page.locator("#camera").textContent(), "Scan QR code");
     await page.waitForFunction(() => {
       const canvas = document.getElementById("qr");
@@ -79,6 +80,15 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     assert.ok(frames.length);
     await page.locator("#camera").click();
     await page.waitForFunction(() => !!window.paintQR);
+    await page.locator("#video").waitFor({ state: "visible" });
+    for (const width of [1280, 375]) {
+      await page.setViewportSize({ width, height: 720 });
+      const button = await page.locator("#camera").boundingBox();
+      const preview = await page.locator("#video").boundingBox();
+      assert.ok(button.y + button.height <= preview.y, "Camera button must be above the preview");
+      assert.ok(Math.abs(button.x - preview.x) < 1, "Camera button and preview must share the same left edge");
+    }
+    await page.setViewportSize({ width: 1280, height: 720 });
     async function paint(frame) {
       const { modules } = QRCode.create(frame.toUpperCase(), { errorCorrectionLevel: "L" });
       await page.evaluate((data) => window.paintQR(data), { size: modules.size, data: Array.from(modules.data) });
@@ -99,18 +109,38 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     assert.equal(reply[6], 0);
     assert.deepEqual(reply[1], Buffer.alloc(16, 1));
     await page.waitForFunction(() => window.testCamera.getTracks().every((track) => track.readyState === "ended"));
-    const cancelled = post(2, abort.signal, 0);
+    await page.locator("#last-reply").filter({ hasText: "Reply sent for request 1: Share a public key." }).waitFor();
+    assert.match(await page.locator("#status").textContent(), /another request may follow with a new QR code/);
+
+    // A connection reply can be followed by a separate request for the wallet key.
+    const connecting = post(2, abort.signal, 0);
     await page.locator("#cancel").waitFor({ state: "visible" });
     await page.locator("#request-title").filter({ hasText: "Scan this QR code with Thunder Den to connect it to your wallet app" }).waitFor();
+    assert.equal(await page.locator("#status").textContent(), "New request 2: Connect Thunder Den");
     assert.equal(await page.locator("#camera").textContent(), "Scan QR code");
+    await page.locator("#camera").click();
+    await page.waitForFunction(() => window.testCamera.getTracks().some((track) => track.readyState === "live"));
+    const info = encoder(cborEncode([3, Buffer.alloc(16, 2), "regtest", reply[3], "0.0.1", 0, 0, []]));
+    for (let i = 0; i < info.fragmentsLength; i++) await paint(info.nextPart());
+    assert.equal((await connecting).status, 200);
+    await page.locator("#last-reply").filter({ hasText: "Reply sent for request 2: Connect Thunder Den." }).waitFor();
+
+    const cancelled = post(3);
+    await page.locator("#status").filter({ hasText: "New request 3: Share a public key" }).waitFor();
+    assert.match(await page.title(), /Request 3: Share a public key/);
+    assert.equal(await page.locator("#request-title").textContent(), "1. Scan this new QR code with Thunder Den");
+    assert.equal(await page.locator("#last-reply").textContent(), "Reply sent for request 2: Connect Thunder Den.");
+    assert.equal(await page.locator("#video").isHidden(), true);
+    const status = await page.locator("#status").boundingBox();
+    assert.ok(status.y >= 0 && status.y + status.height <= 720, "New request must be scrolled into view");
     await page.locator("#cancel").click();
     assert.equal((await cancelled).status, 410);
     await page.locator("#job").waitFor({ state: "hidden" });
     const disconnected = new AbortController();
-    const abandoned = post(3, disconnected.signal);
+    const abandoned = post(4, disconnected.signal);
     abandoned.catch(() => {});
-    await page.locator("#status").filter({ hasText: "A request from your wallet app is ready." }).waitFor();
-    assert.equal(await page.locator("#request-title").textContent(), "1. Scan this QR code with the device running Thunder Den");
+    await page.locator("#status").filter({ hasText: "New request 4: Share a public key" }).waitFor();
+    assert.equal(await page.locator("#request-title").textContent(), "1. Scan this new QR code with Thunder Den");
     await page.locator("#camera").click();
     await page.waitForFunction(() => window.testCamera.getTracks().some((track) => track.readyState === "live"));
     disconnected.abort();

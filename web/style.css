@@ -11,7 +11,7 @@ button:focus-visible { outline: 3px solid var(--td-color-orange); outline-offset
 button:disabled { opacity: .5; cursor: wait; }
 #camera { color: var(--td-color-white); background: var(--td-color-graphite); border-color: var(--td-color-graphite); }
 canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; background: var(--td-color-white); }
-video { width: 100%; max-width: 480px; border-radius: var(--td-radius-sm); }
+video { display: block; width: 100%; max-width: 480px; border-radius: var(--td-radius-sm); }
 #status { font-weight: 600; padding: 1rem; background: var(--td-color-white); border: 1px solid var(--td-color-divider); border-left: 4px solid var(--td-color-orange); border-radius: var(--td-radius-md); }
-#frames, #progress { color: var(--td-color-secondary-text); }
+#frames, #progress, #last-reply { color: var(--td-color-secondary-text); }
 [hidden] { display: none !important; }
