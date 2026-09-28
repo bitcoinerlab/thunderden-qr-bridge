@@ -20,8 +20,8 @@ transactions or store wallets or camera images.
 
 ## Run (Node.js 22 or newer)
 
-Build async-hwi's `hwi` command, then run it and the bridge on the same online
-computer.
+Run the bridge on the same computer as your wallet app or async-hwi's `hwi`
+command.
 
 Start the bridge to open the QR page:
 
@@ -43,8 +43,9 @@ and has no runtime npm dependencies. Its logo and colors come from the
 [Thunder Den brand](https://github.com/bitcoinerlab/thunderden-brand) and are
 bundled locally.
 
-With the bridge open and Thunder Den set to regtest, request an extended public
-key (xpub) through async-hwi. The browser page displays the request QR code:
+To use async-hwi's command-line tool, first build its `hwi` command. With the
+bridge running and Thunder Den set to regtest, request an extended public key
+(xpub):
 
 ```sh
 hwi --network regtest xpub get --path "m/48h/1h/0h/2h"
