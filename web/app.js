@@ -20,6 +20,7 @@ function stopCamera() {
   capture.width = capture.height = 0;
   get("camera").textContent = "Scan QR code";
   get("request-view").hidden = false; get("reply-view").hidden = true;
+  get("display-controls").hidden = false;
   get("progress").textContent = "";
 }
 function exitQrFullscreen() {
@@ -61,7 +62,6 @@ async function poll() {
           : `1. Scan this ${job.number > 1 ? "new " : ""}QR code with Thunder Den`;
         get("pause").textContent = "Pause QR codes";
         get("pause").hidden = sender.fragmentsLength === 1;
-        get("frames").textContent = sender.fragmentsLength === 1 ? "This request fits in one QR code." : "This request uses several QR codes. Keep the device running Thunder Den pointed at this screen until it finishes scanning.";
         get("status").textContent = `New request ${job.number}: ${job.name}`;
         document.title = `Request ${job.number}: ${job.name} — Thunder Den QR bridge`;
         get("progress").textContent = ""; get("job").hidden = false;
@@ -93,10 +93,14 @@ async function scan(id, camera) {
           if (job?.id !== id || stream !== camera) return;
           if (response.ok) {
             finishedId = id;
+            const connecting = job.operation === 0;
             get("last-reply").textContent = `Reply sent for request ${job.number}: ${job.name}.`;
             get("last-reply").hidden = false;
             clear();
-            get("status").textContent = "Check your wallet app. Keep this page open: another request may follow with a new QR code.";
+            get("status").innerHTML = connecting
+              ? "<strong>Keep watching this page for the next QR code.</strong>Your wallet may ask for your public key in the next few seconds. Complete any prompts in your wallet app, then return here."
+              : "Check your wallet app. Keep this page open: another request may follow with a new QR code.";
+            get("status").scrollIntoView();
             return;
           }
           if (response.status === 412) {
@@ -122,10 +126,12 @@ get("camera").onclick = async () => {
   try {
     const camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 960 } }, audio: false });
     if (job?.id !== id) { camera.getTracks().forEach((track) => track.stop()); return; }
+    exitQrFullscreen();
     stream = camera; decoder = new Decoder(); get("video").srcObject = stream;
     get("request-view").hidden = true; get("reply-view").hidden = false;
+    get("display-controls").hidden = true;
     get("video").hidden = false; get("camera").textContent = "Back to request QR";
-    get("reply-view").scrollIntoView();
+    get("qr-view").scrollIntoView();
     scan(id, camera);
   } catch { get("progress").textContent = "Could not open the camera. Allow camera access in your browser, then try again."; }
   finally { get("camera").disabled = false; }

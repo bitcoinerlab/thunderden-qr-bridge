@@ -14,26 +14,25 @@
   <p id="status" role="status">To begin, start an action in your wallet app on this computer. This page will show a QR code when the request is ready.</p>
   <p id="last-reply" hidden></p>
   <section id="job" hidden>
-    <div id="request-view">
-      <h2 id="request-title">1. Scan this QR code with the device running Thunder Den</h2>
-      <div id="qr-view">
-        <div class="qr-controls">
-          <button id="pause">Pause QR codes</button>
+    <div id="qr-view">
+      <div class="qr-controls">
+        <button id="camera">Scan QR code</button>
+        <button id="cancel">Cancel this request</button>
+        <div id="display-controls">
           <button id="fullscreen" aria-pressed="false">Full screen</button>
+          <button id="pause">Pause QR codes</button>
         </div>
-        <div class="qr-display"><canvas id="qr" aria-label="Request QR code"></canvas></div>
-        <p id="frames"></p>
       </div>
-      <p>Follow the instructions on Thunder Den. When it shows a reply QR code, click <strong>Scan QR code</strong> below.</p>
-    </div>
-    <div id="reply-view" hidden>
-      <h2>2. Scan the reply from Thunder Den</h2>
-      <video id="video" autoplay playsinline muted hidden></video>
-    </div>
-    <p id="progress"></p>
-    <div>
-      <button id="camera">Scan QR code</button>
-      <button id="cancel">Cancel this request</button>
+      <div id="request-view">
+        <h2 id="request-title">1. Scan this QR code with the device running Thunder Den</h2>
+        <p>Follow the instructions on Thunder Den. When it shows a reply QR code, click <strong>Scan QR code</strong>.</p>
+        <div class="qr-display"><canvas id="qr" aria-label="Request QR code"></canvas></div>
+      </div>
+      <div id="reply-view" hidden>
+        <h2>2. Scan the reply from Thunder Den</h2>
+        <video id="video" autoplay playsinline muted hidden></video>
+      </div>
+      <p id="progress"></p>
     </div>
     <p>Cancelling here does not cancel the request on the device running Thunder Den. Press Esc there too.</p>
   </section>

@@ -67,6 +67,18 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
       const canvas = document.getElementById("qr");
       return canvas.width > 300 && canvas.width === canvas.height;
     });
+    async function checkPreviewLayout(selector) {
+      const preview = await page.locator(selector).boundingBox();
+      const view = await page.locator("#qr-view").boundingBox();
+      const viewport = page.viewportSize();
+      assert.ok(Math.abs(preview.x + preview.width / 2 - view.x - view.width / 2) < 1, "Preview must be centered");
+      for (const control of await page.locator(".qr-controls button:visible").all()) {
+        const button = await control.boundingBox();
+        assert.ok(button.y + button.height <= preview.y, "Controls must be above the preview");
+        assert.ok(button.y >= 0 && button.y + button.height <= viewport.height, "Controls must stay in view");
+        assert.ok(button.x >= 0 && button.x + button.width <= viewport.width, "Controls must fit the viewport");
+      }
+    }
     async function enterFullscreen() {
       await page.locator("#fullscreen").click();
       await page.waitForFunction(() => document.fullscreenElement?.id === "qr-view");
@@ -75,9 +87,13 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
       const button = await page.locator("#fullscreen").boundingBox();
       const viewport = page.viewportSize();
       assert.ok(button.y >= 0 && button.y + button.height <= viewport.height, "Full-screen exit must stay in view");
+      assert.equal(await page.locator("#camera").isVisible(), true);
+      assert.equal(await page.locator("#cancel").isVisible(), true);
+      await checkPreviewLayout("#qr");
     }
     await page.setViewportSize({ width: 1280, height: 900 });
     const normalQr = await page.locator("#qr").boundingBox();
+    await checkPreviewLayout("#qr");
     await enterFullscreen();
     const largeQr = await page.locator("#qr").boundingBox();
     assert.ok(Math.min(largeQr.width, largeQr.height) > Math.min(normalQr.width, normalQr.height), `Full screen must enlarge the QR: ${JSON.stringify({ normalQr, largeQr })}`);
@@ -93,6 +109,7 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     await page.waitForFunction(() => document.fullscreenElement === null);
     const narrowQr = await page.locator("#qr").boundingBox();
     assert.ok(Math.abs(narrowQr.width - narrowQr.height) < 1, "The normal QR must stay square on a narrow screen");
+    await checkPreviewLayout("#qr");
     await page.setViewportSize({ width: 1280, height: 720 });
 
     await page.evaluate(() => { window.denyCamera = true; });
@@ -113,24 +130,25 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     const frames = [];
     for await (const frame of lines) { if (frame) frames.push(frame); }
     assert.ok(frames.length);
+    await enterFullscreen();
     await page.locator("#camera").click();
+    await page.waitForFunction(() => document.fullscreenElement === null);
     await page.waitForFunction(() => !!window.paintQR);
     await page.locator("#video").waitFor({ state: "visible" });
     assert.equal(await page.locator("#qr").isHidden(), true);
     assert.equal(await page.locator("#request-view").isHidden(), true);
     assert.equal(await page.locator("#camera").textContent(), "Back to request QR");
+    assert.equal(await page.locator("#display-controls").isHidden(), true);
     for (const width of [1280, 375]) {
       await page.setViewportSize({ width, height: 720 });
-      const button = await page.locator("#camera").boundingBox();
-      const preview = await page.locator("#video").boundingBox();
-      assert.ok(preview.y + preview.height <= button.y, "Camera button must be below the preview");
-      assert.ok(Math.abs(button.x - preview.x) < 1, "Camera button and preview must share the same left edge");
+      await checkPreviewLayout("#video");
     }
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.locator("#camera").click();
     await page.waitForFunction(() => window.testCamera.getTracks().every((track) => track.readyState === "ended"));
     assert.equal(await page.locator("#qr").isVisible(), true);
     assert.equal(await page.locator("#reply-view").isHidden(), true);
+    assert.equal(await page.locator("#display-controls").isVisible(), true);
     assert.equal((await fetch(url.origin + "/job").then((response) => response.json())).id, Buffer.alloc(16, 1).toString("hex"));
     await page.locator("#camera").click();
     await page.waitForFunction(() => window.testCamera.getTracks().some((track) => track.readyState === "live"));
@@ -169,12 +187,18 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     for (let i = 0; i < info.fragmentsLength; i++) await paint(info.nextPart());
     assert.equal((await connecting).status, 200);
     await page.locator("#last-reply").filter({ hasText: "Reply sent for request 2: Connect Thunder Den." }).waitFor();
+    await page.locator("#status strong").filter({ hasText: "Keep watching this page for the next QR code." }).waitFor();
+    assert.match(await page.locator("#status").textContent(), /wallet may ask for your public key/);
+    const notice = await page.locator("#status").boundingBox();
+    assert.ok(notice.y >= 0 && notice.y + notice.height <= 720, "Connection follow-up must be scrolled into view");
+    assert.equal(await page.locator("#status strong").evaluate((text) => Number(getComputedStyle(text).fontWeight) >= 700), true);
 
     const cancelled = post(3);
     await page.locator("#status").filter({ hasText: "New request 3: Share a public key" }).waitFor();
     assert.match(await page.title(), /Request 3: Share a public key/);
     assert.equal(await page.locator("#request-title").textContent(), "1. Scan this new QR code with Thunder Den");
     assert.equal(await page.locator("#last-reply").textContent(), "Reply sent for request 2: Connect Thunder Den.");
+    assert.equal(await page.locator("#status strong").count(), 0);
     assert.equal(await page.locator("#video").isHidden(), true);
     const status = await page.locator("#status").boundingBox();
     assert.ok(status.y >= 0 && status.y + status.height <= 720, "New request must be scrolled into view");
@@ -229,6 +253,14 @@ test("browser renders requests, scans a simulated camera, rejects stale replies 
     await page.waitForFunction((previous) => document.getElementById("qr").toDataURL() !== previous, hiddenFrame);
     await page.locator("#cancel").click();
     assert.equal((await animated).status, 410);
+    await page.locator("#job").waitFor({ state: "hidden" });
+
+    const fullscreenCancelled = post(6);
+    await page.locator("#status").filter({ hasText: "New request 6: Share a public key" }).waitFor();
+    await enterFullscreen();
+    await page.locator("#cancel").click();
+    assert.equal((await fullscreenCancelled).status, 410);
+    await page.waitForFunction(() => document.fullscreenElement === null);
     await page.locator("#job").waitFor({ state: "hidden" });
     assert.deepEqual(errors, []);
     console.log(`Browser: ${await browser.version()}; public xpub response, cancellation and client disconnect passed`);
