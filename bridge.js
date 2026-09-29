@@ -46,6 +46,9 @@ function header(data, reply = false) {
   result.operation = item(0, 0xffffffff);
   if (reply) result.status = item(0, 5);
   if (pos >= data.length || data[pos] >> 5 !== 4) throw new Error("Missing command arguments/result");
+  // GET_INFO has no arguments or result. Validate the whole message before caching.
+  if (result.operation === 0 && (data[pos] !== 0x80 || pos + 1 !== data.length))
+    throw new Error("Invalid GET_INFO arguments/result");
   return result;
 }
 
@@ -59,7 +62,7 @@ export async function startBridge(port = 32123) {
     ["/brand/favicon.svg", "web/brand/favicon.svg", "image/svg+xml"],
   ].map(async ([path, file, type]) => [path, { body: await readFile(new URL(file, import.meta.url)), type }])));
   const session = randomBytes(16).toString("hex");
-  let job = null, origin, fingerprint = null, ended = false;
+  let job = null, origin, fingerprint = null, cachedInfo = null, ended = false;
   const server = createServer(async (req, res) => {
     const send = (status, body = "", type = "text/plain") => {
       res.writeHead(status, {
@@ -114,6 +117,12 @@ export async function startBridge(port = 32123) {
       if (ended) { send(412, "Bridge session ended. Restart the bridge."); return; }
       if (req.url === "/exchange") {
         const request = header(body);
+        if (request.operation === 0 && cachedInfo?.network === request.network) {
+          const reply = Buffer.from(cachedInfo.reply);
+          // Return the saved public information with this query's 16-byte request ID.
+          body.copy(reply, 3, 3, 19);
+          send(200, reply, "application/cbor"); return;
+        }
         if (job) { send(409); return; }
         job = { ...request, payload: body.toString("base64"), send, res };
         // Dropping the CLI connection discards this exchange, never retries it.
@@ -125,13 +134,16 @@ export async function startBridge(port = 32123) {
           if (reply.id !== job.id || reply.operation !== job.operation
               || (reply.network !== job.network && reply.status !== 4)) { send(409); return; }
           if (fingerprint !== null && reply.fingerprint !== fingerprint) {
-            ended = true;
+            ended = true; cachedInfo = null;
             job.send(412);
             job = null;
             send(412, "Signer changed. Restart the bridge to start a new session.");
             return;
           }
-          if (reply.status === 0) fingerprint = reply.fingerprint;
+          if (reply.status === 0) {
+            fingerprint = reply.fingerprint;
+            if (reply.operation === 0) cachedInfo = { network: reply.network, reply: body };
+          }
         }
         job.send(action[1] === "reply" ? 200 : 410, body, "application/cbor");
         job = null;

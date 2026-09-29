@@ -15,8 +15,8 @@ This bridge handles that journey. It runs alongside async-hwi on the same
 online computer and opens a browser page to show each request as a QR code.
 Thunder Den scans the request, and you review signing on its own screen. When
 it shows a reply QR, point the online computer's camera at it. The bridge
-returns that reply to async-hwi. It only transports messages: it does not build
-transactions or store wallets or camera images.
+returns that reply to async-hwi. It does not build transactions or store wallets
+or camera images.
 
 ## Run (Node.js 22 or newer)
 
@@ -57,16 +57,22 @@ request on the device running Thunder Den. When its reply QR is ready, click
 bridge delivers the scanned reply to async-hwi so the command can finish
 without you copying anything between programs.
 
-async-hwi discovers the bridge alongside other devices. Its `device list` command
-retrieves the offline signer's fingerprint through QR and waits for the reply.
+async-hwi discovers the bridge alongside other devices. The first connection QR
+exchange supplies the signer's fingerprint and version. The bridge remembers
+this public information in memory for the current session and Bitcoin network,
+so reopening a device list does not require another scan. This does not prove
+that Thunder Den is still running. Public-key sharing, wallet registration,
+address checks and signing always require fresh QR exchanges.
+
 `xpub get` returns a bare xpub. For another port, set
 the `THUNDERDEN_BRIDGE_URL` environment variable to
 `http://127.0.0.1:PORT/exchange`.
 
-The bridge handles one request at a time. To cancel, click **Cancel this request**
+The bridge displays one QR request at a time. To cancel, click **Cancel this request**
 on its page and press Esc on Thunder Den too; cancelling on one computer does
 not stop the other. Requests are not retried automatically. Restart the bridge
-before changing the seed/passphrase or switching to another signer.
+before changing the recovery words, passphrase, network or Thunder Den version,
+or switching to another signer.
 
 For wallet registration and signing, follow the
 [end-to-end walkthrough](https://github.com/bitcoinerlab/thunderden/blob/master/docs/WALKTHROUGH.md).

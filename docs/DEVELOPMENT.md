@@ -69,6 +69,18 @@ it in `POST /exchange` and checks it on the response. The POST carries the
 request's inner CBOR bytes and stays open until the bridge has an answer. Only
 one exchange can be waiting at a time.
 
+`GET_INFO` (operation 0) is the only cacheable command. After its first successful
+QR reply, the bridge keeps that reply in memory for the current session. Later
+`GET_INFO` requests for the same network receive those saved values with their
+own request ID. Both the request and reply must have a complete, canonical empty
+arguments/result array. Errors and cancelled requests do not populate the cache.
+
+A cache hit does not create or change a QR job, even while another operation is
+waiting for approval. All other commands still require a fresh exchange and
+retain the usual busy, cancellation and reply-matching checks. Restarting the
+bridge or ending the session after a fingerprint change clears the cache. Saved
+fingerprint/version information does not prove that the signer is still available.
+
 The page checks `GET /job` about every half second. The response is `null` when
 idle, or an `id` in hex, `payload` in base64 and the numeric `operation` for the
 waiting request. This job ID comes from the request and is separate from the

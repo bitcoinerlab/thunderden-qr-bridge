@@ -32,6 +32,9 @@ test("async-hwi CLI with the C++ signer: discovery, policies, addresses and 1/5/
     const listed = await run(signer, ["device", "list"]);
     assert.equal(listed.stderr.trim(), `${fixture[`${signer}_fingerprint`]} thunderden 0.0.1`);
     assert.deepEqual(operations(listed), [0]); // Fingerprint and version share one reply.
+    const listedAgain = await run(signer, ["device", "list"]);
+    assert.equal(listedAgain.stderr, listed.stderr);
+    assert.deepEqual(operations(listedAgain), []); // A fresh client can reuse this bridge session's information.
     const xpub = await run(signer, xpubArgs);
     assert.equal(xpub.stderr.trim(), fixture.keys[signer === "alice" ? 1 : 2].split("]")[1]);
     assert.deepEqual(operations(xpub), [1]);
@@ -80,5 +83,5 @@ test("async-hwi CLI with the C++ signer: discovery, policies, addresses and 1/5/
   t.after(() => new Promise((resolve) => specter.close(resolve)));
   const listed = await run("alice", ["device", "list"]);
   assert.equal(listed.stderr.trim(), `${fixture.alice_fingerprint} thunderden 0.0.1\nf00dbabe specter-simulator`);
-  assert.deepEqual(operations(listed), [0]);
+  assert.deepEqual(operations(listed), []);
 });
