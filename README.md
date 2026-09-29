@@ -57,6 +57,10 @@ request on the device running Thunder Den. When its reply QR is ready, click
 bridge delivers the scanned reply to async-hwi so the command can finish
 without you copying anything between programs.
 
+Use **Full screen** to enlarge a request QR, then **Exit full screen** or Esc to
+return. **Scan QR code** switches to the camera; **Back to request QR** stops it
+and returns to the same request.
+
 async-hwi discovers the bridge alongside other devices. The first connection QR
 exchange supplies the signer's fingerprint and version. The bridge remembers
 this public information in memory for the current session and Bitcoin network,

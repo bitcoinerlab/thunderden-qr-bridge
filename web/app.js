@@ -19,8 +19,14 @@ function stopCamera() {
   stream = null; get("video").srcObject = null; get("video").hidden = true;
   capture.width = capture.height = 0;
   get("camera").textContent = "Scan QR code";
+  get("request-view").hidden = false; get("reply-view").hidden = true;
+  get("progress").textContent = "";
+}
+function exitQrFullscreen() {
+  if (document.fullscreenElement === get("qr-view")) document.exitFullscreen().catch(() => {});
 }
 function clear() {
+  exitQrFullscreen();
   stopCamera(); clearTimeout(timer); job = null; sender = null; decoder = null;
   get("job").hidden = true;
   document.title = "Thunder Den QR bridge";
@@ -28,8 +34,12 @@ function clear() {
 async function animate(id, version, first) {
   if (job?.id !== id) return;
   try {
-    if (!paused) await QRCode.toCanvas(get("qr"), (first ?? sender.nextPart()).toUpperCase(),
-      { version, errorCorrectionLevel: "L", margin: 4, width: 600 });
+    if (!paused && !get("request-view").hidden) {
+      const canvas = get("qr");
+      await QRCode.toCanvas(canvas, (first ?? sender.nextPart()).toUpperCase(),
+        { version, errorCorrectionLevel: "L", margin: 4, width: 600 });
+      canvas.style.width = canvas.style.height = ""; // Let CSS size the rendered QR.
+    }
     if (job?.id === id && sender.fragmentsLength > 1) timer = setTimeout(() => animate(id, version), 250);
   } catch { get("status").textContent = "Could not show this QR code. Cancel the request and try again."; }
 }
@@ -104,19 +114,44 @@ async function scan(id, camera) {
   if (stream === camera && job?.id === id) setTimeout(() => scan(id, camera), 200);
 }
 get("camera").onclick = async () => {
-  if (stream) { stopCamera(); return; }
+  if (stream) { stopCamera(); get("status").scrollIntoView(); return; }
   const id = job?.id;
   if (!id) return;
   get("camera").disabled = true;
+  get("progress").textContent = "";
   try {
     const camera = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 960 } }, audio: false });
     if (job?.id !== id) { camera.getTracks().forEach((track) => track.stop()); return; }
     stream = camera; decoder = new Decoder(); get("video").srcObject = stream;
-    get("video").hidden = false; get("camera").textContent = "Stop camera";
+    get("request-view").hidden = true; get("reply-view").hidden = false;
+    get("video").hidden = false; get("camera").textContent = "Back to request QR";
+    get("reply-view").scrollIntoView();
     scan(id, camera);
   } catch { get("progress").textContent = "Could not open the camera. Allow camera access in your browser, then try again."; }
   finally { get("camera").disabled = false; }
 };
+get("fullscreen").hidden = !document.fullscreenEnabled;
+get("fullscreen").onclick = async () => {
+  const id = job?.id;
+  if (!id) return;
+  try {
+    if (document.fullscreenElement === get("qr-view")) await document.exitFullscreen();
+    else {
+      await get("qr-view").requestFullscreen();
+      if (job?.id !== id) exitQrFullscreen();
+    }
+  } catch { get("status").textContent = "Could not switch full screen. You can keep scanning in this view."; }
+};
+document.addEventListener("fullscreenchange", () => {
+  const fullscreen = document.fullscreenElement === get("qr-view");
+  get("fullscreen").textContent = fullscreen ? "Exit full screen" : "Full screen";
+  get("fullscreen").setAttribute("aria-pressed", String(fullscreen));
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.fullscreenElement === get("qr-view")) {
+    event.preventDefault(); exitQrFullscreen();
+  }
+});
 get("pause").onclick = () => { paused = !paused; get("pause").textContent = paused ? "Resume QR codes" : "Pause QR codes"; };
 get("cancel").onclick = async () => {
   if (!job) return;
