@@ -5,7 +5,7 @@ import { encoder, Decoder } from "./qr.js";
 
 const get = (id) => document.getElementById(id);
 const requestNames = ["Connect Thunder Den", "Share a public key", "Register a wallet", "Verify an address", "Review and sign a transaction"];
-let job = null, sender = null, decoder = null, stream = null, paused = false, timer = null;
+let job = null, sender = null, decoder = null, stream = null, timer = null;
 let finishedId = null, requestNumber = 0;
 const capture = document.createElement("canvas");
 const context = capture.getContext("2d", { willReadFrequently: true });
@@ -18,9 +18,10 @@ function stopCamera() {
   stream?.getTracks().forEach((track) => track.stop());
   stream = null; get("video").srcObject = null; get("video").hidden = true;
   capture.width = capture.height = 0;
-  get("camera").textContent = "Scan QR code";
   get("request-view").hidden = false; get("reply-view").hidden = true;
-  get("display-controls").hidden = false;
+  get("request-title").hidden = false; get("reply-title").hidden = true;
+  get("next-step").hidden = false; get("back").hidden = true;
+  get("fullscreen").hidden = !document.fullscreenEnabled;
   get("progress").textContent = "";
 }
 function exitQrFullscreen() {
@@ -35,7 +36,7 @@ function clear() {
 async function animate(id, version, first) {
   if (job?.id !== id) return;
   try {
-    if (!paused && !get("request-view").hidden) {
+    if (!get("request-view").hidden) {
       const canvas = get("qr");
       await QRCode.toCanvas(canvas, (first ?? sender.nextPart()).toUpperCase(),
         { version, errorCorrectionLevel: "L", margin: 4, width: 600 });
@@ -56,12 +57,8 @@ async function poll() {
       clear();
       if (next) {
         job = { ...next, number: ++requestNumber, name: requestNames[next.operation] ?? "Wallet request" };
-        sender = encoder(Buffer.from(next.payload, "base64")); decoder = new Decoder(); paused = false;
-        get("request-title").textContent = next.operation === 0
-          ? "1. Scan this QR code with Thunder Den to connect it to your wallet app"
-          : `1. Scan this ${job.number > 1 ? "new " : ""}QR code with Thunder Den`;
-        get("pause").textContent = "Pause QR codes";
-        get("pause").hidden = sender.fragmentsLength === 1;
+        sender = encoder(Buffer.from(next.payload, "base64")); decoder = new Decoder();
+        get("request-title").textContent = `1. Scan this ${job.number > 1 ? "new " : ""}QR with Thunder Den`;
         get("status").textContent = `New request ${job.number}: ${job.name}`;
         document.title = `Request ${job.number}: ${job.name} — Thunder Den QR bridge`;
         get("progress").textContent = ""; get("job").hidden = false;
@@ -117,8 +114,8 @@ async function scan(id, camera) {
   }
   if (stream === camera && job?.id === id) setTimeout(() => scan(id, camera), 200);
 }
+get("back").onclick = () => { stopCamera(); get("camera").focus({ preventScroll: true }); };
 get("camera").onclick = async () => {
-  if (stream) { stopCamera(); get("status").scrollIntoView(); return; }
   const id = job?.id;
   if (!id) return;
   get("camera").disabled = true;
@@ -129,9 +126,10 @@ get("camera").onclick = async () => {
     exitQrFullscreen();
     stream = camera; decoder = new Decoder(); get("video").srcObject = stream;
     get("request-view").hidden = true; get("reply-view").hidden = false;
-    get("display-controls").hidden = true;
-    get("video").hidden = false; get("camera").textContent = "Back to request QR";
-    get("qr-view").scrollIntoView();
+    get("request-title").hidden = true; get("reply-title").hidden = false;
+    get("next-step").hidden = true; get("back").hidden = false;
+    get("fullscreen").hidden = true; get("video").hidden = false;
+    get("back").focus({ preventScroll: true });
     scan(id, camera);
   } catch { get("progress").textContent = "Could not open the camera. Allow camera access in your browser, then try again."; }
   finally { get("camera").disabled = false; }
@@ -158,7 +156,6 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault(); exitQrFullscreen();
   }
 });
-get("pause").onclick = () => { paused = !paused; get("pause").textContent = paused ? "Resume QR codes" : "Pause QR codes"; };
 get("cancel").onclick = async () => {
   if (!job) return;
   const id = job.id;

@@ -53,12 +53,12 @@ hwi --network regtest xpub get --path "m/48h/1h/0h/2h"
 
 The command waits while you scan the request QR with Thunder Den. Review the
 request on the device running Thunder Den. When its reply QR is ready, click
-**Scan QR code** on the bridge page and point this computer's camera at it. The
+**Open camera →** on the bridge page and point this computer's camera at it. The
 bridge delivers the scanned reply to async-hwi so the command can finish
 without you copying anything between programs.
 
 Use **Full screen** to enlarge a request QR, then **Exit full screen** or Esc to
-return. **Scan QR code** switches to the camera; **Back to request QR** stops it
+return. **Open camera →** switches to the camera; **← Back to request QR** stops it
 and returns to the same request.
 
 async-hwi discovers the bridge alongside other devices. The first connection QR
@@ -72,7 +72,7 @@ address checks and signing always require fresh QR exchanges.
 the `THUNDERDEN_BRIDGE_URL` environment variable to
 `http://127.0.0.1:PORT/exchange`.
 
-The bridge displays one QR request at a time. To cancel, click **Cancel this request**
+The bridge displays one QR request at a time. To cancel, click **Cancel request**
 on its page and press Esc on Thunder Den too; cancelling on one computer does
 not stop the other. Requests are not retried automatically. Restart the bridge
 before changing the recovery words, passphrase, network or Thunder Den version,

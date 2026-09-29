@@ -15,24 +15,28 @@
   <p id="last-reply" hidden></p>
   <section id="job" hidden>
     <div id="qr-view">
-      <div class="qr-controls">
-        <button id="camera">Scan QR code</button>
-        <button id="cancel">Cancel this request</button>
-        <div id="display-controls">
+      <header class="review-header">
+        <h2 id="request-title">1. Scan this QR with Thunder Den</h2>
+        <h2 id="reply-title" hidden>2. Scan Thunder Den’s reply</h2>
+        <div class="qr-controls">
+          <button id="back" hidden>← Back to request QR</button>
           <button id="fullscreen" aria-pressed="false">Full screen</button>
-          <button id="pause">Pause QR codes</button>
+          <button id="cancel">Cancel request</button>
         </div>
+      </header>
+      <div id="request-view" class="preview">
+        <canvas id="qr" aria-label="Request QR code"></canvas>
       </div>
-      <div id="request-view">
-        <h2 id="request-title">1. Scan this QR code with the device running Thunder Den</h2>
-        <p>Follow the instructions on Thunder Den. When it shows a reply QR code, click <strong>Scan QR code</strong>.</p>
-        <div class="qr-display"><canvas id="qr" aria-label="Request QR code"></canvas></div>
-      </div>
-      <div id="reply-view" hidden>
-        <h2>2. Scan the reply from Thunder Den</h2>
+      <div id="reply-view" class="preview" hidden>
         <video id="video" autoplay playsinline muted hidden></video>
       </div>
-      <p id="progress"></p>
+      <footer>
+        <div id="next-step">
+          <p id="reply-prompt">When Thunder Den shows its reply QR:</p>
+          <button id="camera" aria-describedby="reply-prompt progress">Open camera →</button>
+        </div>
+        <p id="progress" role="status"></p>
+      </footer>
     </div>
   </section>
 </body>
